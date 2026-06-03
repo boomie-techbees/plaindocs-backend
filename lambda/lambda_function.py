@@ -93,10 +93,25 @@ def lambda_handler(event, context):
         response = bedrock.converse(
             modelId=MODEL_ID,
             system=[{"text": prompt}],
-            messages=messages
+            messages=messages,
+            guardrailConfig={
+                'guardrailIdentifier': 'r3n8beoeuevq',
+                'guardrailVersion': 'DRAFT',
+                'trace': 'enabled'
+            }
         )
+        
+        stop_reason = response.get('stopReason', '')
+            
+        if stop_reason == 'guardrail_intervened':
+            return {
+                'statusCode': 400,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'This document couldn\'t be processed. It may contain content that violates our usage guidelines.'})
+            }
 
         result_text = response['output']['message']['content'][0]['text']
+
         result_text = result_text.strip()
         if result_text.startswith('```'):
             result_text = result_text.split('\n', 1)[1]
