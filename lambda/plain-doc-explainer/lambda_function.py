@@ -41,9 +41,10 @@ def verify_jwt(token):
             options={"verify_exp": True}
         )
         return claims
-    except Exception:
+    except Exception as e:
+        print(f"JWT verification failed: {type(e).__name__}: {str(e)}")
         return None
-
+        
 def fetch_url(url):
     req = urllib.request.Request(
         url,
