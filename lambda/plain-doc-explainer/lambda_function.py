@@ -5,20 +5,17 @@ import urllib.request
 import urllib.error
 import uuid
 from datetime import datetime
-
-def decode_jwt_payload(token):
-    try:
-        payload = token.split('.')[1]
-        padding = 4 - len(payload) % 4
-        payload += '=' * padding
-        decoded = base64.b64decode(payload)
-        return json.loads(decoded)
-    except Exception:
-        return None
+import jwt
+from jwt import PyJWKClient
 
 REGION = 'us-east-1'
+USER_POOL_ID = 'us-east-1_VHMBH4reW'
+CLIENT_ID = '2v25gq0b51uu9lt95mikcaorj4'
 MODEL_ID = 'us.amazon.nova-lite-v1:0'
 MAX_BYTES = 4 * 1024 * 1024  # 4MB
+
+JWKS_URL = f'https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/.well-known/jwks.json'
+jwks_client = PyJWKClient(JWKS_URL)
 
 bedrock = boto3.client('bedrock-runtime', region_name=REGION)
 
@@ -32,6 +29,20 @@ Analyze the document and return ONLY a JSON object with exactly these fields:
 - otherNotable: array of objects with "label" and "description" fields (use only if something important doesn't fit above, otherwise return empty array)
 
 Return only valid JSON. No markdown, no code fences, no preamble."""
+
+def verify_jwt(token):
+    try:
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=['RS256'],
+            audience=CLIENT_ID,
+            options={"verify_exp": True}
+        )
+        return claims
+    except Exception:
+        return None
 
 def fetch_url(url):
     req = urllib.request.Request(
@@ -51,14 +62,23 @@ def lambda_handler(event, context):
         doc_base64 = body.get('document', '')
         url = body.get('url', '')
         language = body.get('language', 'English')
+        is_private = body.get('private', False)
 
         user_id = None
+        claims = None
         auth_header = event.get('headers', {}).get('authorization', '') or event.get('headers', {}).get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header[7:]
-            claims = decode_jwt_payload(token)
+            claims = verify_jwt(token)
             if claims:
                 user_id = claims.get('sub')
+
+        if is_private and not user_id:
+            return {
+                'statusCode': 401,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'You must be signed in to use Private mode.'})
+            }
 
         prompt = SYSTEM_PROMPT.format(language=language)
 
@@ -118,9 +138,9 @@ def lambda_handler(event, context):
                 'trace': 'enabled'
             }
         )
-        
+
         stop_reason = response.get('stopReason', '')
-            
+
         if stop_reason == 'guardrail_intervened':
             return {
                 'statusCode': 400,
@@ -146,8 +166,9 @@ def lambda_handler(event, context):
             'input_type': 'url' if url else 'pdf' if doc_base64 else 'text',
             'language': language,
             'summary_preview': result_json.get('summary', '')[:200],
-            'user_id': user_id or 'anonymous'
-        })        
+            'user_id': user_id or 'anonymous',
+            'is_private': is_private
+        })
 
         return {
             'statusCode': 200,
