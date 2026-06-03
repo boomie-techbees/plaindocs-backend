@@ -112,11 +112,23 @@ def lambda_handler(event, context):
             'body': json.dumps(result_json)
         }
 
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            error_msg = "This URL blocked outside access. Try downloading the file and uploading it as a PDF instead."
+        elif e.code == 404:
+            error_msg = "That URL couldn't be found. Check the link and try again."
+        else:
+            error_msg = f"This URL couldn't be accessed (error {e.code}). Try downloading the file and uploading it as a PDF instead."
+        return {
+            'statusCode': 400,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': error_msg})
+        }
     except urllib.error.URLError as e:
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': f'Could not fetch URL: {str(e)}'})
+            'body': json.dumps({'error': "This URL couldn't be reached. Check the link or try downloading the file and uploading it as a PDF instead."})
         }
     except Exception as e:
         return {
