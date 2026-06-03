@@ -2,7 +2,9 @@
 
 This repository contains the AWS backend for [PlainDocs](https://plaindocs.techbees.me) — an AI-powered document explainer that breaks down legal documents, terms of service, and contracts into plain language.
 
-For full project documentation, see the main repo at [github.com/boomie-techbees/plaindocs-explained](https://github.com/boomie-techbees/plaindocs-explained).  This repo is mainly to back up backend code (e.g. the Lambda code) which is not maintained in Lovable.
+For full project documentation, see the main repo at [github.com/boomie-techbees/plaindocs-explained](https://github.com/boomie-techbees/plaindocs-explained).  This repo is mainly to back up backend code (e.g. the Lambda code) which is not maintained in Lovable.  
+
+Additional info is at [this link](https://docs.google.com/document/d/1MFpLhApNsbGzt8fF9DJ-8G9yx0zVq5R94nTWX6hob6E/edit?tab=t.0).
 
 ---
 
