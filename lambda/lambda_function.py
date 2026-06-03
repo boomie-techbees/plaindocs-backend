@@ -3,6 +3,8 @@ import boto3
 import base64
 import urllib.request
 import urllib.error
+import uuid
+from datetime import datetime
 
 REGION = 'us-east-1'
 MODEL_ID = 'us.amazon.nova-lite-v1:0'
@@ -102,6 +104,16 @@ def lambda_handler(event, context):
             result_text = result_text.rsplit('```', 1)[0].strip()
 
         result_json = json.loads(result_text)
+
+        dynamodb = boto3.resource('dynamodb', region_name=REGION)
+        table = dynamodb.Table('plaindocs-analyses')
+        table.put_item(Item={
+            'id': str(uuid.uuid4()),
+            'timestamp': datetime.utcnow().isoformat(),
+            'input_type': 'url' if url else 'pdf' if doc_base64 else 'text',
+            'language': language,
+            'summary_preview': result_json.get('summary', '')[:200]
+        })        
 
         return {
             'statusCode': 200,
