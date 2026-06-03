@@ -6,6 +6,16 @@ import urllib.error
 import uuid
 from datetime import datetime
 
+def decode_jwt_payload(token):
+    try:
+        payload = token.split('.')[1]
+        padding = 4 - len(payload) % 4
+        payload += '=' * padding
+        decoded = base64.b64decode(payload)
+        return json.loads(decoded)
+    except Exception:
+        return None
+
 REGION = 'us-east-1'
 MODEL_ID = 'us.amazon.nova-lite-v1:0'
 MAX_BYTES = 4 * 1024 * 1024  # 4MB
@@ -41,6 +51,14 @@ def lambda_handler(event, context):
         doc_base64 = body.get('document', '')
         url = body.get('url', '')
         language = body.get('language', 'English')
+
+        user_id = None
+        auth_header = event.get('headers', {}).get('authorization', '') or event.get('headers', {}).get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+            claims = decode_jwt_payload(token)
+            if claims:
+                user_id = claims.get('sub')
 
         prompt = SYSTEM_PROMPT.format(language=language)
 
@@ -127,7 +145,8 @@ def lambda_handler(event, context):
             'timestamp': datetime.utcnow().isoformat(),
             'input_type': 'url' if url else 'pdf' if doc_base64 else 'text',
             'language': language,
-            'summary_preview': result_json.get('summary', '')[:200]
+            'summary_preview': result_json.get('summary', '')[:200],
+            'user_id': user_id or 'anonymous'
         })        
 
         return {
