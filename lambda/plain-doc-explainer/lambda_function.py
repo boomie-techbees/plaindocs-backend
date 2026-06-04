@@ -22,6 +22,7 @@ bedrock = boto3.client('bedrock-runtime', region_name=REGION)
 SYSTEM_PROMPT = """You are a document explainer. You MUST respond entirely in {language}. Every word of your response must be in {language}, including all labels, descriptions, and the summary. Do not use English unless {language} is English.
 
 Analyze the document and return ONLY a JSON object with exactly these fields:
+- title: a short 5-7 word title identifying the document (e.g. "Apple Terms of Use", "UsageAI Master Service Agreement")
 - summary: a short paragraph explaining what this document is
 - keyRights: array of objects with "label" and "description" fields
 - keyRisks: array of objects with "label" and "description" fields
@@ -164,6 +165,7 @@ def lambda_handler(event, context):
         table.put_item(Item={
             'id': str(uuid.uuid4()),
             'timestamp': datetime.utcnow().isoformat(),
+            'title': result_json.get('title', '')[:100],
             'input_type': 'url' if url else 'pdf' if doc_base64 else 'text',
             'language': language,
             'summary_preview': result_json.get('summary', '')[:200],
