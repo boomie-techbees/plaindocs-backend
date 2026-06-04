@@ -12,7 +12,8 @@ Additional info is at [this link](https://docs.google.com/document/d/1MFpLhApNsb
 
 ```
 lambda/
-└── lambda_function.py   # AWS Lambda function (Python 3.14)
+└── <folder for Lambda function>
+   └── lambda_function.py   # AWS Lambda function (Python 3.14)
 ```
 
 ---
