@@ -18,6 +18,7 @@ JWKS_URL = f'https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/.well-kno
 jwks_client = PyJWKClient(JWKS_URL)
 
 bedrock = boto3.client('bedrock-runtime', region_name=REGION)
+comprehend = boto3.client('comprehend', region_name=REGION)
 
 SYSTEM_PROMPT = """You are a document explainer. You MUST respond entirely in {language}. Every word of your response must be in {language}, including all labels, descriptions, and the summary. Do not use English unless {language} is English.
 
@@ -45,7 +46,7 @@ def verify_jwt(token):
     except Exception as e:
         print(f"JWT verification failed: {type(e).__name__}: {str(e)}")
         return None
-        
+
 def fetch_url(url):
     req = urllib.request.Request(
         url,
@@ -56,6 +57,18 @@ def fetch_url(url):
         content = response.read(MAX_BYTES)
         is_pdf = 'application/pdf' in content_type
         return content, is_pdf
+
+def detect_language(text):
+    try:
+        if not text or len(text.strip()) < 20:
+            return 'unknown'
+        response = comprehend.detect_dominant_language(Text=text[:5000])
+        languages = response.get('Languages', [])
+        if languages:
+            return languages[0].get('LanguageCode', 'unknown')
+        return 'unknown'
+    except Exception:
+        return 'unknown'
 
 def lambda_handler(event, context):
     try:
@@ -82,6 +95,15 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'You must be signed in to use Private mode.'})
             }
 
+        if doc_base64:
+            detection_text = ''
+        elif not url:
+            detection_text = text
+        else:
+            detection_text = ''
+            
+        input_language = detect_language(detection_text)
+
         prompt = SYSTEM_PROMPT.format(language=language)
 
         if url:
@@ -104,6 +126,7 @@ def lambda_handler(event, context):
                 }]
             else:
                 text_content = content.decode('utf-8', errors='ignore')
+                input_language = detect_language(text_content)
                 messages = [{
                     "role": "user",
                     "content": [{"text": f"Explain this document using the format specified:\n\n{text_content}"}]
@@ -167,7 +190,8 @@ def lambda_handler(event, context):
             'timestamp': datetime.utcnow().isoformat(),
             'title': result_json.get('title', '')[:100],
             'input_type': 'url' if url else 'pdf' if doc_base64 else 'text',
-            'language': language,
+            'language_input': input_language,
+            'language_output': language,
             'summary_preview': result_json.get('summary', '')[:200],
             'user_id': user_id or 'anonymous',
             'is_private': is_private
